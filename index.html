@@ -112,9 +112,9 @@
 </head>
 <body class="text-on-surface antialiased font-body-md selection:bg-secondary selection:text-white relative min-h-screen">
 
-<!-- 1. FULL-SITE FIXED BACKGROUND CANVAS (Fades in from Slide 2 Onwards, 180 Frames) -->
+<!-- 1. FULL-SITE FIXED BACKGROUND VIDEO (Fades in from Slide 2 Onwards) -->
 <div id="bg-canvas-container" class="fixed inset-0 w-full h-full -z-10 overflow-hidden pointer-events-none bg-[#090b0e] transition-opacity duration-700 opacity-0">
-  <canvas id="bg-canvas" class="w-full h-full block object-cover"></canvas>
+  <video id="bg-video" class="w-full h-full block object-cover" src="background.mp4" muted playsinline preload="auto"></video>
   <div class="absolute inset-0 bg-gradient-to-b from-[#0c0d12]/90 via-[#0c0d12]/60 to-[#0c0d12]/95"></div>
   <div class="absolute inset-0 bg-black/35 backdrop-blur-[0.5px]"></div>
 </div>
@@ -123,7 +123,6 @@
 <div class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 pointer-events-auto flex items-center gap-3 bg-neutral-950/85 backdrop-blur-xl px-4 py-2.5 rounded-full border border-white/15 shadow-2xl">
   <span class="material-symbols-outlined text-secondary text-sm animate-spin" style="animation-duration: 5s;">autorenew</span>
   <span class="text-xs font-label-md font-bold text-neutral-200 tracking-wider uppercase" id="hud-title">Hero 360°</span>
-  <span class="text-xs font-mono text-neutral-400 border-l border-neutral-700 pl-3" id="hud-frame">1 / 300</span>
   <span class="text-xs font-mono text-secondary font-bold" id="hud-percent">0%</span>
 </div>
 
@@ -169,14 +168,14 @@
 </header>
 
 <!-- ========================================================================= -->
-<!-- 2. HERO SECTION SCROLL-BASED ANIMATION (Slide 1: 300 Frames with Sticky Viewport) -->
+<!-- 2. HERO SECTION SCROLL-BASED ANIMATION (Slide 1: Sticky 3D Shoe Viewport) -->
 <!-- ========================================================================= -->
 <section id="hero-scroll-container" class="relative w-full z-20 bg-[#090b0e]" style="height: 480vh;">
   <!-- Sticky Viewport that locks during scroll -->
   <div class="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden bg-[#090b0e]">
     
-    <!-- Hero Canvas (300 High-Res Frames) -->
-    <canvas id="hero-canvas" class="w-full h-full block object-cover"></canvas>
+    <!-- Hero Video Scrubbing -->
+    <video id="hero-video" class="w-full h-full block object-cover" src="hero.mp4" muted playsinline preload="auto"></video>
 
     <!-- Edge Vignette Gradients for Dark Atmosphere -->
     <div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#0c0d12] via-transparent to-[#121319]/70"></div>
@@ -906,20 +905,11 @@ Have questions about an upcoming wedding, bulk student footwear, or special sizi
 </footer>
 
 <!-- ========================================================================= -->
-<!-- DUAL ANIMATION JAVASCRIPT: HERO (300 FRAMES) + SLIDE 2 BACKGROUND (180 FRAMES) -->
+<!-- DUAL VIDEO SCROLL SCRIPT: HERO (Slide 1) + BACKGROUND (Slide 2 Onwards) -->
 <!-- ========================================================================= -->
 <script>
   (function() {
-    // --- 1. CONFIGURATION ---
-    const HERO_FRAMES = 300;
-    const heroPath = (i) => `frames/ezgif-frame-${i.toString().padStart(3, '0')}.jpg`;
-
-    const BG_FRAMES = 180;
-    const bgPath = (i) => `bg_frames/ezgif-frame-${i.toString().padStart(3, '0')}.jpg`;
-
-    // --- 2. DOM ELEMENTS ---
-    const heroCanvas = document.getElementById('hero-canvas');
-    const heroCtx = heroCanvas.getContext('2d');
+    const heroVideo = document.getElementById('hero-video');
     const heroContainer = document.getElementById('hero-scroll-container');
     const scrollHint = document.getElementById('scroll-hint');
 
@@ -927,123 +917,31 @@ Have questions about an upcoming wedding, bulk student footwear, or special sizi
     const stage2 = document.getElementById('stage-2');
     const stage3 = document.getElementById('stage-3');
 
-    const bgCanvas = document.getElementById('bg-canvas');
-    const bgCtx = bgCanvas.getContext('2d');
+    const bgVideo = document.getElementById('bg-video');
     const bgContainer = document.getElementById('bg-canvas-container');
 
     const hudTitle = document.getElementById('hud-title');
-    const hudFrame = document.getElementById('hud-frame');
     const hudPercent = document.getElementById('hud-percent');
 
-    // --- 3. STATE & CACHES ---
-    const heroImages = [];
-    const bgImages = [];
+    let targetHeroTime = 0;
+    let targetBgTime = 0;
 
-    let targetHeroFrame = 1;
-    let currentHeroFrame = 1;
-
-    let targetBgFrame = 1;
-    let currentBgFrame = 1;
-
-    // --- 4. CANVAS SIZING ---
-    function resizeCanvases() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      
-      // Hero canvas
-      if (heroCanvas) {
-        const heroRect = heroCanvas.getBoundingClientRect();
-        heroCanvas.width = heroRect.width * dpr;
-        heroCanvas.height = heroRect.height * dpr;
-        drawHeroFrame();
-      }
-
-      // BG canvas
-      if (bgCanvas) {
-        bgCanvas.width = window.innerWidth * dpr;
-        bgCanvas.height = window.innerHeight * dpr;
-        drawBgFrame();
-      }
-    }
-
-    // --- 5. DRAWING ROUTINES ---
-    function renderCover(ctx, canvas, img) {
-      if (!img || !img.complete || img.naturalWidth === 0) return;
-      const cWidth = canvas.width;
-      const cHeight = canvas.height;
-      const imgWidth = img.naturalWidth;
-      const imgHeight = img.naturalHeight;
-
-      const ratio = Math.max(cWidth / imgWidth, cHeight / imgHeight);
-      const w = imgWidth * ratio;
-      const h = imgHeight * ratio;
-      const x = (cWidth - w) / 2;
-      const y = (cHeight - h) / 2;
-
-      ctx.clearRect(0, 0, cWidth, cHeight);
-      ctx.drawImage(img, x, y, w, h);
-    }
-
-    function drawHeroFrame() {
-      const idx = Math.min(HERO_FRAMES, Math.max(1, Math.round(currentHeroFrame)));
-      let img = heroImages[idx];
-      if (!img || !img.complete || img.naturalWidth === 0) {
-        for (let off = 1; off < 25; off++) {
-          if (heroImages[idx - off]?.complete && heroImages[idx - off]?.naturalWidth > 0) { img = heroImages[idx - off]; break; }
-          if (heroImages[idx + off]?.complete && heroImages[idx + off]?.naturalWidth > 0) { img = heroImages[idx + off]; break; }
-        }
-      }
-      if (img && img.complete) renderCover(heroCtx, heroCanvas, img);
-    }
-
-    function drawBgFrame() {
-      const idx = Math.min(BG_FRAMES, Math.max(1, Math.round(currentBgFrame)));
-      let img = bgImages[idx];
-      if (!img || !img.complete || img.naturalWidth === 0) {
-        for (let off = 1; off < 20; off++) {
-          if (bgImages[idx - off]?.complete && bgImages[idx - off]?.naturalWidth > 0) { img = bgImages[idx - off]; break; }
-          if (bgImages[idx + off]?.complete && bgImages[idx + off]?.naturalWidth > 0) { img = bgImages[idx + off]; break; }
-        }
-      }
-      if (img && img.complete) renderCover(bgCtx, bgCanvas, img);
-    }
-
-    // --- 6. PRELOADERS ---
-    const firstHero = new Image();
-    firstHero.src = heroPath(1);
-    heroImages[1] = firstHero;
-    firstHero.onload = () => drawHeroFrame();
-
-    const firstBg = new Image();
-    firstBg.src = bgPath(1);
-    bgImages[1] = firstBg;
-    firstBg.onload = () => drawBgFrame();
-
-    for (let i = 2; i <= HERO_FRAMES; i++) {
-      const img = new Image();
-      img.src = heroPath(i);
-      heroImages[i] = img;
-    }
-    for (let i = 2; i <= BG_FRAMES; i++) {
-      const img = new Image();
-      img.src = bgPath(i);
-      bgImages[i] = img;
-    }
-
-    // --- 7. SCROLL CALCULATION ---
+    // Direct seeking inside requestAnimationFrame
     function onScroll() {
       const windowHeight = window.innerHeight;
       const scrollY = window.scrollY || window.pageYOffset || 0;
 
-      // 1. Hero calculation (300 frames in #hero-scroll-container)
+      // 1. Hero calculation
       const heroRect = heroContainer.getBoundingClientRect();
       const heroMaxScroll = heroContainer.offsetHeight - windowHeight;
       const heroScroll = -heroRect.top;
       let heroProgress = heroMaxScroll > 0 ? (heroScroll / heroMaxScroll) : 0;
       heroProgress = Math.max(0, Math.min(1, heroProgress));
 
-      targetHeroFrame = Math.floor(heroProgress * (HERO_FRAMES - 1)) + 1;
+      if (heroVideo && heroVideo.duration) {
+        targetHeroTime = heroProgress * heroVideo.duration;
+      }
 
-      // Hero stages visibility
       if (heroProgress > 0.05 && scrollHint) scrollHint.style.opacity = '0';
       else if (scrollHint) scrollHint.style.opacity = '1';
 
@@ -1105,58 +1003,59 @@ Have questions about an upcoming wedding, bulk student footwear, or special sizi
         }
       }
 
-      // 2. Background animation: ACTIVATES ONLY FROM SLIDE 2 ONWARDS
-      // Slide 2 begins right after the hero scroll track
+      // 2. Background video: ACTIVATES FROM SLIDE 2 ONWARDS
       const slide2Trigger = heroContainer.offsetHeight - windowHeight * 0.4;
       
       if (scrollY >= slide2Trigger) {
-        // Fade in background animation canvas
         if (bgContainer) bgContainer.style.opacity = '1';
 
-        // Calculate scroll progress for the rest of the website
         const remainingScrollDistance = document.documentElement.scrollHeight - windowHeight - slide2Trigger;
         let slide2Progress = remainingScrollDistance > 0 ? ((scrollY - slide2Trigger) / remainingScrollDistance) : 0;
         slide2Progress = Math.max(0, Math.min(1, slide2Progress));
 
-        targetBgFrame = Math.floor(slide2Progress * (BG_FRAMES - 1)) + 1;
+        if (bgVideo && bgVideo.duration) {
+          targetBgTime = slide2Progress * bgVideo.duration;
+        }
 
         if (hudTitle) hudTitle.textContent = 'Background 360°';
-        if (hudFrame) hudFrame.textContent = `${Math.round(currentBgFrame)} / ${BG_FRAMES}`;
         if (hudPercent) hudPercent.textContent = `${Math.round(slide2Progress * 100)}%`;
       } else {
-        // Hero slide: keep background canvas hidden
         if (bgContainer) bgContainer.style.opacity = '0';
-        targetBgFrame = 1;
+        targetBgTime = 0;
 
         if (hudTitle) hudTitle.textContent = 'Hero 360°';
-        if (hudFrame) hudFrame.textContent = `${Math.round(currentHeroFrame)} / ${HERO_FRAMES}`;
         if (hudPercent) hudPercent.textContent = `${Math.round(heroProgress * 100)}%`;
       }
     }
 
-    // --- 8. SMOOTH MOMENTUM ANIMATION LOOP ---
     function animate() {
-      // Hero frame lerp
-      const heroDiff = targetHeroFrame - currentHeroFrame;
-      if (Math.abs(heroDiff) > 0.01) {
-        currentHeroFrame += heroDiff * 0.20;
-        drawHeroFrame();
+      if (heroVideo && heroVideo.duration) {
+        const diff = targetHeroTime - heroVideo.currentTime;
+        if (Math.abs(diff) > 0.02) {
+          heroVideo.currentTime += diff * 0.3;
+        }
       }
 
-      // BG frame lerp
-      const bgDiff = targetBgFrame - currentBgFrame;
-      if (Math.abs(bgDiff) > 0.01) {
-        currentBgFrame += bgDiff * 0.18;
-        drawBgFrame();
+      if (bgVideo && bgVideo.duration) {
+        const diff = targetBgTime - bgVideo.currentTime;
+        if (Math.abs(diff) > 0.02) {
+          bgVideo.currentTime += diff * 0.3;
+        }
       }
 
       requestAnimationFrame(animate);
     }
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', resizeCanvases);
+    if (heroVideo) {
+      heroVideo.addEventListener('loadedmetadata', onScroll);
+      heroVideo.pause();
+    }
+    if (bgVideo) {
+      bgVideo.addEventListener('loadedmetadata', onScroll);
+      bgVideo.pause();
+    }
 
-    resizeCanvases();
     onScroll();
     requestAnimationFrame(animate);
   })();

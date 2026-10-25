@@ -1,0 +1,3 @@
+@echo off
+echo Opening NICE SHOES website...
+start "" "%~dp0index.html"

@@ -8,8 +8,8 @@ $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()
 Write-Host "Server running at http://localhost:$Port/"
 
-try {
-    while ($listener.IsListening) {
+while ($listener.IsListening) {
+    try {
         $context = $listener.GetContext()
         $request = $context.Request
         $response = $context.Response
@@ -21,7 +21,6 @@ try {
         $filePath = Join-Path $baseDir $urlPath
 
         if (Test-Path $filePath -PathType Leaf) {
-            $bytes = [System.IO.File]::ReadAllBytes($filePath)
             $ext = [System.IO.Path]::GetExtension($filePath).ToLower()
             switch ($ext) {
                 ".html" { $response.ContentType = "text/html; charset=utf-8" }
@@ -32,19 +31,26 @@ try {
                 ".jpg"  { $response.ContentType = "image/jpeg" }
                 ".jpeg" { $response.ContentType = "image/jpeg" }
                 ".svg"  { $response.ContentType = "image/svg+xml" }
+                ".mp4"  { $response.ContentType = "video/mp4" }
+                ".zip"  { $response.ContentType = "application/zip" }
                 default { $response.ContentType = "application/octet-stream" }
             }
+
+            $bytes = [System.IO.File]::ReadAllBytes($filePath)
             $response.ContentLength64 = $bytes.Length
-            $response.OutputStream.Write($bytes, 0, $bytes.Length)
+            if ($request.HttpMethod -ne "HEAD") {
+                $response.OutputStream.Write($bytes, 0, $bytes.Length)
+            }
         } else {
             $response.StatusCode = 404
             $buffer = [System.Text.Encoding]::UTF8.GetBytes("Not Found")
             $response.ContentLength64 = $buffer.Length
-            $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            if ($request.HttpMethod -ne "HEAD") {
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            }
         }
         $response.Close()
+    } catch {
+        # ignore request error and continue listening
     }
-} finally {
-    $listener.Stop()
-    $listener.Close()
 }

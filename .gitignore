@@ -1,3 +1,8 @@
 .DS_Store
 Thumbs.db
 *.log
+frames/
+bg_frames/
+*.zip
+create_clean_zip.ps1
+
